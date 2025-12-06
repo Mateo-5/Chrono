@@ -1,0 +1,70 @@
+# Build outputs
+/build/
+/app/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Gradle files
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+local.properties
+
+# IDE - Android Studio
+*.iml
+.idea/
+.idea/caches/
+.idea/libraries/
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/.name
+.idea/compiler.xml
+.idea/modules.xml
+.idea/misc.xml
+.idea/vcs.xml
+.idea/gradle.xml
+.idea/dictionaries
+.idea/inspectionProfiles/
+.idea/appInsightsSettings.xml
+.idea/deploymentTargetSelector.xml
+.idea/kotlinc.xml
+.idea/migrations.xml
+.idea/other.xml
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Signing
+*.jks
+*.keystore
+signing.properties
+
+# NDK
+obj/
+
+# Captures
+captures/
+
+# Log files
+*.log
+
+# Proguard
+proguard/
+
+# Test outputs
+/app/test/
+/app/androidTest/
+
+# Misc
+*.tmp
+*.bak
+*.swp
+*~.nib
