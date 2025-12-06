@@ -58,7 +58,7 @@ This project was developed using an innovative **human-AI collaboration** workfl
 
 | Role | Contributor |
 |------|-------------|
-| **Project Lead & Prompt Engineer** | Developer |
+| **Project Lead & Prompt Engineer** | Alen Mathew |
 | **AI Development Assistant** | Claude (Anthropic) |
 
 The development process involved:
