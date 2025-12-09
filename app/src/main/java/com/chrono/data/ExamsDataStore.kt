@@ -9,13 +9,14 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import java.time.LocalDate
 
 private val Context.examsDataStore: DataStore<Preferences> by preferencesDataStore(name = "exams")
 
 data class ExamEntry(
+    val id: String = "",
     val date: String,
-    val subject: String
+    val subject: String,
+    val isOver: Boolean = false
 )
 
 data class ExamsData(
@@ -47,8 +48,9 @@ class ExamsDataStore(private val context: Context) {
                 ExamsData()
             }
             
+            val id = System.currentTimeMillis().toString()
             val updatedExams = currentData.exams.toMutableList()
-            updatedExams.add(ExamEntry(date, subject))
+            updatedExams.add(ExamEntry(id, date, subject, false))
             updatedExams.sortBy { it.date }
             
             val updatedData = currentData.copy(exams = updatedExams)
@@ -67,8 +69,29 @@ class ExamsDataStore(private val context: Context) {
             
             val updatedExams = currentData.exams.toMutableList()
             if (index < updatedExams.size) {
-                updatedExams[index] = ExamEntry(date, subject)
+                val existingId = updatedExams[index].id.ifEmpty { System.currentTimeMillis().toString() }
+                updatedExams[index] = ExamEntry(existingId, date, subject, updatedExams[index].isOver)
                 updatedExams.sortBy { it.date }
+            }
+            
+            val updatedData = currentData.copy(exams = updatedExams)
+            preferences[EXAMS_DATA] = gson.toJson(updatedData)
+        }
+    }
+    
+    suspend fun markExamOver(index: Int) {
+        context.examsDataStore.edit { preferences ->
+            val currentJson = preferences[EXAMS_DATA]
+            val currentData = if (currentJson != null) {
+                gson.fromJson(currentJson, ExamsData::class.java)
+            } else {
+                ExamsData()
+            }
+            
+            val updatedExams = currentData.exams.toMutableList()
+            if (index < updatedExams.size) {
+                val exam = updatedExams[index]
+                updatedExams[index] = exam.copy(isOver = !exam.isOver)
             }
             
             val updatedData = currentData.copy(exams = updatedExams)
@@ -92,6 +115,18 @@ class ExamsDataStore(private val context: Context) {
             
             val updatedData = currentData.copy(exams = updatedExams)
             preferences[EXAMS_DATA] = gson.toJson(updatedData)
+        }
+    }
+    
+    suspend fun deleteAllExams() {
+        context.examsDataStore.edit { preferences ->
+            preferences[EXAMS_DATA] = gson.toJson(ExamsData())
+        }
+    }
+    
+    suspend fun restoreData(data: ExamsData) {
+        context.examsDataStore.edit { preferences ->
+            preferences[EXAMS_DATA] = gson.toJson(data)
         }
     }
 }

@@ -1,5 +1,8 @@
 package com.chrono.ui.reminders
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,19 +20,20 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.outlined.Alarm
-import androidx.compose.material.icons.filled.NotificationsOff
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,6 +41,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,10 +55,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chrono.data.ReminderEntry
+import com.chrono.data.ReminderType
 import com.chrono.data.RemindersDataStore
-import com.chrono.ui.theme.AccentBlue
+import com.chrono.data.SingleReminderMode
 import com.chrono.ui.theme.BackgroundGradient
 import com.chrono.ui.theme.TextPrimary
 import com.chrono.ui.theme.TextSecondary
@@ -77,6 +85,14 @@ fun RemindersScreen(
     val navBarPadding = WindowInsets.navigationBars.asPaddingValues()
     
     var showAddDialog by remember { mutableStateOf(false) }
+    var completedExpanded by remember { mutableStateOf(false) }  // Collapsed by default
+    
+    // Note: Reminders are only marked as completed when user clicks Dismiss/Complete
+    
+    // Separate active and completed reminders
+    // Active includes: all non-completed reminders (including expired single ones that haven't been dismissed)
+    val activeReminders = remindersData.reminders.filter { !it.isCompleted }
+    val completedReminders = remindersData.reminders.filter { it.isCompleted }
     
     Box(
         modifier = Modifier
@@ -150,23 +166,111 @@ fun RemindersScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(remindersData.reminders, key = { it.id }) { reminder ->
-                        ReminderCard(
-                            title = reminder.title,
-                            dateTime = reminder.dateTime,
-                            isActive = reminder.isActive,
-                            onToggle = {
-                                scope.launch {
-                                    remindersDataStore.toggleReminder(reminder.id)
+                    // Active Reminders
+                    if (activeReminders.isNotEmpty()) {
+                        items(activeReminders, key = { it.id }) { reminder ->
+                            ReminderCard(
+                                reminder = reminder,
+                                onToggle = {
+                                    scope.launch {
+                                        remindersDataStore.toggleReminder(reminder.id)
+                                    }
+                                },
+                                onDelete = {
+                                    scope.launch {
+                                        remindersDataStore.deleteReminder(reminder.id)
+                                    }
+                                },
+                                onMarkCompleted = {
+                                    scope.launch {
+                                        remindersDataStore.markReminderCompleted(reminder.id)
+                                    }
                                 }
-                            },
-                            onDelete = {
-                                scope.launch {
-                                    remindersDataStore.deleteReminder(reminder.id)
+                            )
+                        }
+                    }
+                    
+                    // Completed Section - Collapsible Dropdown
+                    if (completedReminders.isNotEmpty()) {
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF1A1A1A))
+                                    .clickable { completedExpanded = !completedExpanded }
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color(0xFF4CAF50),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Text(
+                                        text = "Completed",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFF2A2A2A))
+                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = completedReminders.size.toString(),
+                                            color = TextSecondary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                                
+                                Icon(
+                                    imageVector = if (completedExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    contentDescription = if (completedExpanded) "Collapse" else "Expand",
+                                    tint = TextSecondary
+                                )
+                            }
+                        }
+                        
+                        item {
+                            AnimatedVisibility(
+                                visible = completedExpanded,
+                                enter = expandVertically(),
+                                exit = shrinkVertically()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(top = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    completedReminders.forEach { reminder ->
+                                        ReminderCard(
+                                            reminder = reminder,
+                                            onToggle = { },
+                                            onDelete = {
+                                                scope.launch {
+                                                    remindersDataStore.deleteReminder(reminder.id)
+                                                }
+                                            },
+                                            onMarkCompleted = { }
+                                        )
+                                    }
                                 }
                             }
-                        )
+                        }
                     }
+                    
+                    item { Spacer(modifier = Modifier.height(80.dp)) }
                 }
             }
         }
@@ -190,10 +294,17 @@ fun RemindersScreen(
         if (showAddDialog) {
             EditReminderDialog(
                 onDismiss = { showAddDialog = false },
-                onConfirm = { title, dateTime ->
+                onConfirmSingle = { title, mode, dateTime ->
                     scope.launch {
-                        remindersDataStore.addReminder(title, dateTime)
-                        scheduleAlarm(context, title, dateTime)
+                        val reminderId = remindersDataStore.addSingleReminder(title, mode, dateTime)
+                        scheduleAlarm(context, title, dateTime, reminderId)
+                    }
+                    showAddDialog = false
+                },
+                onConfirmRepeated = { title, hour, minute ->
+                    scope.launch {
+                        remindersDataStore.addRepeatedReminder(title, hour, minute)
+                        scheduleRepeatingAlarm(context, title, hour, minute)
                     }
                     showAddDialog = false
                 }
@@ -202,54 +313,118 @@ fun RemindersScreen(
     }
 }
 
-private fun scheduleAlarm(context: android.content.Context, title: String, timeInMillis: Long) {
-    val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
-    val intent = android.content.Intent(context, com.chrono.notification.AlarmReceiver::class.java).apply {
-        putExtra("title", title)
-        putExtra("content", "Time for your reminder!")
-    }
-    
-    val pendingIntent = android.app.PendingIntent.getBroadcast(
-        context,
-        timeInMillis.toInt(), // Unique ID based on time
-        intent,
-        android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-    )
-    
-    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-        if (alarmManager.canScheduleExactAlarms()) {
+private fun scheduleAlarm(context: android.content.Context, title: String, timeInMillis: Long, reminderId: String) {
+    try {
+        val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+        val intent = android.content.Intent(context, com.chrono.notification.AlarmReceiver::class.java).apply {
+            putExtra("title", title)
+            putExtra("request_code", timeInMillis.toInt())
+            putExtra("reminder_id", reminderId)
+        }
+        
+        val requestCode = timeInMillis.toInt()
+        
+        val pendingIntent = android.app.PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        // Check for exact alarm permission on Android 12+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            if (alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    android.app.AlarmManager.RTC_WAKEUP,
+                    timeInMillis,
+                    pendingIntent
+                )
+            } else {
+                // Fallback to inexact alarm
+                alarmManager.set(
+                    android.app.AlarmManager.RTC_WAKEUP,
+                    timeInMillis,
+                    pendingIntent
+                )
+            }
+        } else {
             alarmManager.setExactAndAllowWhileIdle(
                 android.app.AlarmManager.RTC_WAKEUP,
                 timeInMillis,
                 pendingIntent
             )
-        } else {
-            // Fallback or request permission (handled in MainActivity)
-            alarmManager.setAndAllowWhileIdle(
-                android.app.AlarmManager.RTC_WAKEUP,
-                timeInMillis,
-                pendingIntent
-            )
         }
-    } else {
-        alarmManager.setExactAndAllowWhileIdle(
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+}
+
+private fun scheduleRepeatingAlarm(context: android.content.Context, title: String, hour: Int, minute: Int) {
+    try {
+        val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+        val intent = android.content.Intent(context, com.chrono.notification.AlarmReceiver::class.java).apply {
+            putExtra("title", title)
+        }
+        
+        val calendar = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, hour)
+            set(java.util.Calendar.MINUTE, minute)
+            set(java.util.Calendar.SECOND, 0)
+            
+            if (before(java.util.Calendar.getInstance())) {
+                add(java.util.Calendar.DAY_OF_MONTH, 1)
+            }
+        }
+        
+        val requestCode = (hour * 60 + minute)
+        
+        val pendingIntent = android.app.PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        alarmManager.setRepeating(
             android.app.AlarmManager.RTC_WAKEUP,
-            timeInMillis,
+            calendar.timeInMillis,
+            android.app.AlarmManager.INTERVAL_DAY,
             pendingIntent
         )
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
 }
 
 @Composable
 private fun ReminderCard(
-    title: String,
-    dateTime: Long,
-    isActive: Boolean,
+    reminder: ReminderEntry,
     onToggle: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onMarkCompleted: () -> Unit
 ) {
     val dateFormat = SimpleDateFormat("MMM dd, yyyy • hh:mm a", Locale.getDefault())
-    val dateTimeStr = dateFormat.format(Date(dateTime))
+    val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
+    
+    val displayText = when (reminder.type) {
+        ReminderType.SINGLE -> {
+            if (reminder.singleMode == SingleReminderMode.START_OF_DAY) {
+                val dayFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+                "${dayFormat.format(Date(reminder.dateTime))} • 6:00 AM"
+            } else {
+                dateFormat.format(Date(reminder.dateTime))
+            }
+        }
+        ReminderType.REPEATED -> {
+            val hour = reminder.repeatTimeHour ?: 0
+            val minute = reminder.repeatTimeMinute ?: 0
+            val cal = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, hour)
+                set(java.util.Calendar.MINUTE, minute)
+            }
+            "Daily at ${timeFormat.format(cal.time)}"
+        }
+    }
     
     Box(
         modifier = Modifier
@@ -257,13 +432,18 @@ private fun ReminderCard(
             .clip(RoundedCornerShape(16.dp))
             .background(
                 brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0x40FFFFFF),
-                        Color(0x20FFFFFF)
-                    )
+                    colors = if (reminder.isCompleted) {
+                        listOf(Color(0x10FFFFFF), Color(0x05FFFFFF))
+                    } else {
+                        listOf(Color(0x40FFFFFF), Color(0x20FFFFFF))
+                    }
                 )
             )
-            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+            .border(
+                1.dp,
+                if (reminder.isCompleted) Color(0xFF333333) else GlassBorder,
+                RoundedCornerShape(16.dp)
+            )
             .padding(16.dp)
     ) {
         Row(
@@ -271,66 +451,86 @@ private fun ReminderCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icon + Content
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF1A1A1A)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isActive) Icons.Default.Notifications
-                        else Icons.Default.NotificationsOff,
-                        contentDescription = null,
-                        tint = if (isActive) Color.White else TextSecondary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                Icon(
+                    imageVector = when {
+                        reminder.isCompleted -> Icons.Default.CheckCircle
+                        reminder.type == ReminderType.REPEATED -> Icons.Default.Repeat
+                        reminder.isActive -> Icons.Default.Notifications
+                        else -> Icons.Default.NotificationsOff
+                    },
+                    contentDescription = null,
+                    tint = when {
+                        reminder.isCompleted -> Color(0xFF4CAF50)
+                        reminder.type == ReminderType.REPEATED -> Color(0xFF42A5F5)
+                        reminder.isActive -> Color.White
+                        else -> TextSecondary
+                    },
+                    modifier = Modifier.size(24.dp)
+                )
                 
-                Column(modifier = Modifier.weight(1f)) {
+                Column {
                     Text(
-                        text = title,
-                        color = Color.White,
+                        text = reminder.title,
+                        color = if (reminder.isCompleted) TextSecondary else Color.White,
                         fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Medium,
+                        textDecoration = if (reminder.isCompleted) TextDecoration.LineThrough else null
                     )
-                    Text(
-                        text = dateTimeStr,
-                        color = if (isActive) Color.White else TextSecondary,
-                        fontSize = 13.sp
-                    )
+                    
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = displayText,
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                        if (reminder.type == ReminderType.REPEATED && !reminder.isCompleted) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFF42A5F5).copy(alpha = 0.2f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Daily",
+                                    color = Color(0xFF42A5F5),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
                 }
             }
             
-            // Toggle switch
-            Switch(
-                checked = isActive,
-                onCheckedChange = { onToggle() },
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.Black,
-                    checkedTrackColor = Color.White,
-                    uncheckedThumbColor = TextSecondary,
-                    uncheckedTrackColor = Color(0xFF2A3A4A)
-                )
-            )
-            
-            // Delete button
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete",
-                    tint = Color(0xFFEF5350),
-                    modifier = Modifier.size(22.dp)
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (!reminder.isCompleted) {
+                    Switch(
+                        checked = reminder.isActive,
+                        onCheckedChange = { onToggle() },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color(0xFF4CAF50),
+                            uncheckedThumbColor = Color.Gray,
+                            uncheckedTrackColor = Color(0xFF333333)
+                        )
+                    )
+                }
+                
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = TextSecondary.copy(alpha = 0.5f)
+                    )
+                }
             }
         }
     }

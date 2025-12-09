@@ -304,9 +304,9 @@ fun CalendarScreen(
             AddEventDialog(
                 selectedDate = selectedDate,
                 onDismiss = { showAddDialog = false },
-                onConfirm = { title, time, subtitle ->
+                onConfirm = { title, subtitle ->
                     scope.launch {
-                        eventsDataStore.addEvent(title, selectedDateString, time, subtitle)
+                        eventsDataStore.addEvent(title, selectedDateString, subtitle, false)
                     }
                     showAddDialog = false
                 }
@@ -319,10 +319,9 @@ fun CalendarScreen(
 private fun AddEventDialog(
     selectedDate: LocalDate,
     onDismiss: () -> Unit,
-    onConfirm: (title: String, time: String, subtitle: String) -> Unit
+    onConfirm: (title: String, subtitle: String) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
-    var time by remember { mutableStateOf("") }
     var subtitle by remember { mutableStateOf("") }
     
     // Custom dark glassmorphic dialog
@@ -340,11 +339,10 @@ private fun AddEventDialog(
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color(0xFF1A1A1A))
                 .border(1.dp, Color(0xFF3A3A3A), RoundedCornerShape(24.dp))
-                .clickable(enabled = false) {} // Prevent click-through
+                .clickable(enabled = false) {}
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Title
             Text(
                 text = "Add Event",
                 color = TextPrimary,
@@ -352,7 +350,6 @@ private fun AddEventDialog(
                 fontWeight = FontWeight.Bold
             )
             
-            // Date display
             Text(
                 text = "${selectedDate.dayOfMonth} ${selectedDate.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${selectedDate.year}",
                 color = Color.White,
@@ -360,9 +357,14 @@ private fun AddEventDialog(
                 fontWeight = FontWeight.Medium
             )
             
-            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Full-day event • Notification at 6:00 AM",
+                color = TextSecondary,
+                fontSize = 12.sp
+            )
             
-            // Event Title Field
+            Spacer(modifier = Modifier.height(4.dp))
+            
             StyledTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -370,15 +372,6 @@ private fun AddEventDialog(
                 placeholder = "Enter event name"
             )
             
-            // Time Field
-            StyledTextField(
-                value = time,
-                onValueChange = { time = it },
-                label = "Time",
-                placeholder = "e.g., 9:00 AM"
-            )
-            
-            // Description Field
             StyledTextField(
                 value = subtitle,
                 onValueChange = { subtitle = it },
@@ -388,12 +381,10 @@ private fun AddEventDialog(
             
             Spacer(modifier = Modifier.height(8.dp))
             
-            // Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Cancel Button
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -411,24 +402,23 @@ private fun AddEventDialog(
                     )
                 }
                 
-                // Add Button
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .background(
-                            if (title.isNotBlank() && time.isNotBlank()) Color.White
+                            if (title.isNotBlank()) Color.White
                             else Color.White.copy(alpha = 0.4f)
                         )
-                        .clickable(enabled = title.isNotBlank() && time.isNotBlank()) {
-                            onConfirm(title, time, subtitle)
+                        .clickable(enabled = title.isNotBlank()) {
+                            onConfirm(title, subtitle)
                         }
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "Add Event",
-                        color = if (title.isNotBlank() && time.isNotBlank()) Color.Black
+                        color = if (title.isNotBlank()) Color.Black
                                else Color.Black.copy(alpha = 0.5f),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold

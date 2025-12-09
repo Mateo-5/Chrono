@@ -12,6 +12,7 @@ import com.chrono.ui.events.EventsScreen
 import com.chrono.ui.exams.ExamsScreen
 import com.chrono.ui.focus.FocusScreen
 import com.chrono.ui.home.HomeScreen
+import com.chrono.ui.notes.NoteDetailScreen
 import com.chrono.ui.notes.NotesScreen
 import com.chrono.ui.notifications.NotificationsScreen
 import com.chrono.ui.reminders.RemindersScreen
@@ -93,6 +94,17 @@ fun AppNavigation() {
         
         composable("notes") {
             NotesScreen(
+                onBack = { navController.popBackStack() },
+                onNoteClick = { noteId ->
+                    navController.navigate("note/$noteId")
+                }
+            )
+        }
+        
+        composable("note/{noteId}") { backStackEntry ->
+            val noteId = backStackEntry.arguments?.getString("noteId") ?: ""
+            NoteDetailScreen(
+                noteId = noteId,
                 onBack = { navController.popBackStack() }
             )
         }

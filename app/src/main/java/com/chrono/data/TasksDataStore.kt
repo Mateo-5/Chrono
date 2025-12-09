@@ -16,15 +16,25 @@ enum class TaskType {
     TASK, BREAK
 }
 
+enum class TaskStatus {
+    PENDING, ACTIVE, COMPLETED, FAILED
+}
+
 data class TaskEntry(
     val id: String,
     val title: String,
-    private val _type: TaskType? = null, // Backing field for backward compatibility
+    private val _type: TaskType? = null,
     val isCompleted: Boolean = false,
     val isActive: Boolean = false,
-    val groupId: String? = null
+    val groupId: String? = null,
+    val groupName: String? = null,
+    val order: Int = 0,
+    val isPriority: Boolean = false,
+    val priorityDeadlineMinutes: Int? = null,
+    val priorityCreatedAt: Long? = null,
+    val isFailed: Boolean = false,
+    val previousActiveTaskId: String? = null
 ) {
-    // Custom getter to handle nulls from old data
     val type: TaskType
         get() = _type ?: TaskType.TASK
 }
@@ -44,10 +54,10 @@ class TasksDataStore(private val context: Context) {
         val json = preferences[TASKS_DATA]
         if (json != null) {
             try {
-                gson.fromJson(json, TasksData::class.java)
+                gson.fromJson(json, TasksData::class.java) ?: TasksData()
             } catch (e: Exception) {
                 e.printStackTrace()
-                TasksData() // Return empty if parsing fails to avoid crash
+                TasksData()
             }
         } else {
             TasksData()
@@ -58,19 +68,15 @@ class TasksDataStore(private val context: Context) {
         context.tasksDataStore.edit { preferences ->
             val currentData = getTasksData(preferences)
             val id = System.currentTimeMillis().toString()
-            
-            // If there's already an active task, this one is just added to the list.
-            // OR, should we make it active? Let's assume new single tasks are just added.
-            // User requested: "If single task, just input the task, send a notification..."
-            // This implies it becomes active immediately if it's the only one, or maybe we queue it?
-            // Let's make it active if no other task is active.
+            val maxOrder = currentData.tasks.maxOfOrNull { it.order } ?: -1
             
             val hasActiveTask = currentData.tasks.any { it.isActive }
             val newTask = TaskEntry(
                 id = id,
                 title = title,
                 _type = TaskType.TASK,
-                isActive = !hasActiveTask
+                isActive = !hasActiveTask,
+                order = maxOrder + 1
             )
             
             val updatedTasks = currentData.tasks.toMutableList()
@@ -80,26 +86,173 @@ class TasksDataStore(private val context: Context) {
         }
     }
     
-    suspend fun addTaskGroup(tasks: List<Pair<String, TaskType>>) {
+    suspend fun addPriorityTask(title: String, deadlineMinutes: Int) {
+        context.tasksDataStore.edit { preferences ->
+            val currentData = getTasksData(preferences)
+            val id = System.currentTimeMillis().toString()
+            
+            val currentActiveTaskId = currentData.tasks.find { it.isActive && !it.isPriority }?.id
+            val updatedExisting = currentData.tasks.map { it.copy(isActive = false) }
+            
+            val newTask = TaskEntry(
+                id = id,
+                title = title,
+                _type = TaskType.TASK,
+                isActive = true,
+                order = -1,
+                isPriority = true,
+                priorityDeadlineMinutes = deadlineMinutes,
+                priorityCreatedAt = System.currentTimeMillis(),
+                previousActiveTaskId = currentActiveTaskId
+            )
+            
+            val updatedTasks = updatedExisting.toMutableList()
+            updatedTasks.add(0, newTask)
+            
+            saveTasksData(preferences, currentData.copy(tasks = updatedTasks))
+        }
+    }
+    
+    suspend fun markPriorityTaskFailed(id: String) {
+        context.tasksDataStore.edit { preferences ->
+            val currentData = getTasksData(preferences)
+            val tasks = currentData.tasks.toMutableList()
+            val failedTaskIndex = tasks.indexOfFirst { it.id == id }
+            
+            if (failedTaskIndex != -1) {
+                val failedTask = tasks[failedTaskIndex]
+                val previousActiveId = failedTask.previousActiveTaskId
+                
+                tasks[failedTaskIndex] = failedTask.copy(
+                    isActive = false,
+                    isFailed = true
+                )
+                
+                if (previousActiveId != null) {
+                    val prevIndex = tasks.indexOfFirst { it.id == previousActiveId }
+                    if (prevIndex != -1 && !tasks[prevIndex].isCompleted) {
+                        tasks[prevIndex] = tasks[prevIndex].copy(isActive = true)
+                    }
+                }
+                
+                saveTasksData(preferences, currentData.copy(tasks = tasks))
+            }
+        }
+    }
+    
+    suspend fun addTaskGroup(groupName: String, tasks: List<Pair<String, TaskType>>) {
         context.tasksDataStore.edit { preferences ->
             val currentData = getTasksData(preferences)
             val groupId = System.currentTimeMillis().toString()
             val hasActiveTask = currentData.tasks.any { it.isActive }
+            val maxOrder = currentData.tasks.maxOfOrNull { it.order } ?: -1
             
             val newTasks = tasks.mapIndexed { index, (title, type) ->
                 TaskEntry(
                     id = "${groupId}_$index",
                     title = title,
                     _type = type,
-                    isActive = !hasActiveTask && index == 0, // First one active if nothing else is
-                    groupId = groupId
+                    isActive = !hasActiveTask && index == 0,
+                    groupId = groupId,
+                    groupName = if (index == 0) groupName else null,
+                    order = maxOrder + 1 + index
                 )
             }
             
             val updatedTasks = currentData.tasks.toMutableList()
-            updatedTasks.addAll(0, newTasks) // Add to top
+            updatedTasks.addAll(0, newTasks)
             
             saveTasksData(preferences, currentData.copy(tasks = updatedTasks))
+        }
+    }
+    
+    // Add a task or break to an existing group
+    suspend fun addToGroup(groupId: String, title: String, type: TaskType) {
+        context.tasksDataStore.edit { preferences ->
+            val currentData = getTasksData(preferences)
+            val groupTasks = currentData.tasks.filter { it.groupId == groupId }
+            
+            if (groupTasks.isEmpty()) return@edit
+            
+            val maxGroupOrder = groupTasks.maxOfOrNull { it.order } ?: 0
+            val newTaskId = "${groupId}_${System.currentTimeMillis()}"
+            
+            val newTask = TaskEntry(
+                id = newTaskId,
+                title = title,
+                _type = type,
+                isActive = false,
+                groupId = groupId,
+                groupName = null,
+                order = maxGroupOrder + 1
+            )
+            
+            // Insert after the last task in the group
+            val updatedTasks = currentData.tasks.toMutableList()
+            val lastGroupIndex = updatedTasks.indexOfLast { it.groupId == groupId }
+            if (lastGroupIndex != -1) {
+                updatedTasks.add(lastGroupIndex + 1, newTask)
+            } else {
+                updatedTasks.add(newTask)
+            }
+            
+            saveTasksData(preferences, currentData.copy(tasks = updatedTasks))
+        }
+    }
+    
+    // Complete all tasks in a group
+    suspend fun completeGroup(groupId: String) {
+        context.tasksDataStore.edit { preferences ->
+            val currentData = getTasksData(preferences)
+            val updatedTasks = currentData.tasks.map { task ->
+                if (task.groupId == groupId) {
+                    task.copy(isCompleted = true, isActive = false)
+                } else {
+                    task
+                }
+            }
+            saveTasksData(preferences, currentData.copy(tasks = updatedTasks))
+        }
+    }
+    
+    // Delete an entire group
+    suspend fun deleteGroup(groupId: String) {
+        context.tasksDataStore.edit { preferences ->
+            val currentData = getTasksData(preferences)
+            val updatedTasks = currentData.tasks.filter { it.groupId != groupId }
+            saveTasksData(preferences, currentData.copy(tasks = updatedTasks))
+        }
+    }
+    
+    suspend fun setActiveTask(id: String) {
+        context.tasksDataStore.edit { preferences ->
+            val currentData = getTasksData(preferences)
+            val updatedTasks = currentData.tasks.map { task ->
+                if (task.id == id && !task.isCompleted && !task.isFailed) {
+                    task.copy(isActive = true)
+                } else {
+                    task.copy(isActive = false)
+                }
+            }
+            saveTasksData(preferences, currentData.copy(tasks = updatedTasks))
+        }
+    }
+    
+    suspend fun reorderTasks(fromIndex: Int, toIndex: Int) {
+        context.tasksDataStore.edit { preferences ->
+            val currentData = getTasksData(preferences)
+            val tasks = currentData.tasks.toMutableList()
+            
+            if (fromIndex in tasks.indices && toIndex in tasks.indices) {
+                val item = tasks.removeAt(fromIndex)
+                tasks.add(toIndex, item)
+                
+                val reordered = tasks.mapIndexed { index, task ->
+                    task.copy(order = index)
+                }
+                
+                saveTasksData(preferences, currentData.copy(tasks = reordered))
+            }
         }
     }
     
@@ -113,19 +266,7 @@ class TasksDataStore(private val context: Context) {
                 val completedTask = tasks[index].copy(isCompleted = true, isActive = false)
                 tasks[index] = completedTask
                 
-                // Check if part of a group and activate next
                 if (completedTask.groupId != null) {
-                    // Find next task in same group that is not completed
-                    // We need to look at the original list order or filter by group
-                    // The list might be sorted or filtered in UI, but here it's raw.
-                    // Assuming tasks are stored in order.
-                    
-                    // We need to find the NEXT task in the list that belongs to the same group and is not completed
-                    // Since we added them in order, we can look for the next index
-                    // But wait, we added them with `addAll(0, newTasks)`, so they are in order: Task 1, Task 2...
-                    // But `addAll(0, ...)` reverses order if not careful? No, `addAll(0, [A, B])` results in [A, B, Old...]
-                    
-                    // Let's find the next task in the group
                     val nextTaskIndex = tasks.indexOfFirst { 
                         it.groupId == completedTask.groupId && !it.isCompleted && it.id != id
                     }
@@ -143,6 +284,26 @@ class TasksDataStore(private val context: Context) {
     suspend fun deleteTask(id: String) {
         context.tasksDataStore.edit { preferences ->
             val currentData = getTasksData(preferences)
+            val taskToDelete = currentData.tasks.find { it.id == id }
+            
+            // If deleting a task that has the group name, transfer it to another task in the group
+            if (taskToDelete?.groupId != null && taskToDelete.groupName != null) {
+                val nextInGroup = currentData.tasks.find { 
+                    it.groupId == taskToDelete.groupId && it.id != id 
+                }
+                if (nextInGroup != null) {
+                    val updatedTasks = currentData.tasks.map { task ->
+                        if (task.id == nextInGroup.id) {
+                            task.copy(groupName = taskToDelete.groupName)
+                        } else {
+                            task
+                        }
+                    }.filter { it.id != id }
+                    saveTasksData(preferences, currentData.copy(tasks = updatedTasks))
+                    return@edit
+                }
+            }
+            
             val updatedTasks = currentData.tasks.filter { it.id != id }
             saveTasksData(preferences, currentData.copy(tasks = updatedTasks))
         }
@@ -160,7 +321,7 @@ class TasksDataStore(private val context: Context) {
         val json = preferences[TASKS_DATA]
         return if (json != null) {
             try {
-                gson.fromJson(json, TasksData::class.java)
+                gson.fromJson(json, TasksData::class.java) ?: TasksData()
             } catch (e: Exception) {
                 e.printStackTrace()
                 TasksData()
@@ -173,7 +334,12 @@ class TasksDataStore(private val context: Context) {
     private fun saveTasksData(preferences: MutablePreferences, data: TasksData) {
         preferences[TASKS_DATA] = gson.toJson(data)
     }
+    
+    suspend fun restoreData(data: TasksData) {
+        context.tasksDataStore.edit { preferences ->
+            preferences[TASKS_DATA] = gson.toJson(data)
+        }
+    }
 }
 
-// Helper alias for MutablePreferences since it's not directly imported
 typealias MutablePreferences = androidx.datastore.preferences.core.MutablePreferences

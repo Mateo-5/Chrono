@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -21,6 +22,8 @@ class SettingsDataStore(private val context: Context) {
         private val FOCUS_DURATION = intPreferencesKey("focus_duration")
         private val BREAK_DURATION = intPreferencesKey("break_duration")
         private val SOUND_EFFECTS = booleanPreferencesKey("sound_effects")
+        
+        private val TEXT_SCALE = floatPreferencesKey("text_scale")
         
         const val DEFAULT_INTERVAL = 60 // 1 hour in minutes
     }
@@ -43,6 +46,10 @@ class SettingsDataStore(private val context: Context) {
     
     val soundEffectsEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[SOUND_EFFECTS] ?: true
+    }
+    
+    val textScale: Flow<Float> = context.dataStore.data.map { preferences ->
+        preferences[TEXT_SCALE] ?: 1.0f
     }
     
     suspend fun setWaterBreakEnabled(enabled: Boolean) {
@@ -73,5 +80,16 @@ class SettingsDataStore(private val context: Context) {
         context.dataStore.edit { preferences ->
             preferences[SOUND_EFFECTS] = enabled
         }
+    }
+    
+    suspend fun setTextScale(scale: Float) {
+        context.dataStore.edit { preferences ->
+            preferences[TEXT_SCALE] = scale
+        }
+        // Also write to SharedPreferences for global access
+        context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putFloat("text_scale", scale)
+            .apply()
     }
 }

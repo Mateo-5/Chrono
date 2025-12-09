@@ -16,10 +16,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -34,16 +38,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chrono.data.ExamsDataStore
-import com.chrono.ui.theme.AccentBlue
 import com.chrono.ui.theme.BackgroundGradient
 import com.chrono.ui.theme.TextPrimary
+import com.chrono.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 @Composable
@@ -82,21 +87,57 @@ fun ExamsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = TextPrimary
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = TextPrimary
+                        )
+                    }
+                    Text(
+                        text = "Exams",
+                        color = TextPrimary,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
-                Text(
-                    text = "Exams",
-                    color = TextPrimary,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                
+                // Delete All button
+                if (examsData.exams.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFB83A3A))
+                            .clickable {
+                                scope.launch {
+                                    examsDataStore.deleteAllExams()
+                                }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteSweep,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Delete All",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
             }
             
             // Table Header
@@ -119,6 +160,12 @@ fun ExamsScreen(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
+                Text(
+                    text = "Status",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
             
             // Exam list or Empty State
@@ -129,7 +176,7 @@ fun ExamsScreen(
                         .padding(32.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             imageVector = Icons.Outlined.School,
                             contentDescription = null,
@@ -146,7 +193,7 @@ fun ExamsScreen(
                         androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "Tap + to add your first exam",
-                            color = com.chrono.ui.theme.TextSecondary,
+                            color = TextSecondary,
                             fontSize = 14.sp
                         )
                     }
@@ -163,11 +210,17 @@ fun ExamsScreen(
                         ExamRow(
                             date = exam.date,
                             subject = exam.subject,
+                            isOver = exam.isOver,
                             onClick = {
                                 editIndex = index
                                 editDate = exam.date
                                 editSubject = exam.subject
                                 showEditDialog = true
+                            },
+                            onToggleOver = {
+                                scope.launch {
+                                    examsDataStore.markExamOver(index)
+                                }
                             }
                         )
                     }
@@ -233,28 +286,45 @@ fun ExamsScreen(
 private fun ExamRow(
     date: String,
     subject: String,
-    onClick: () -> Unit
+    isOver: Boolean,
+    onClick: () -> Unit,
+    onToggleOver: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = date,
-            color = Color.White,
+            color = if (isOver) TextSecondary else Color.White,
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
+            textDecoration = if (isOver) TextDecoration.LineThrough else null,
             modifier = Modifier.weight(1f)
         )
         Text(
             text = subject,
-            color = Color.White,
+            color = if (isOver) TextSecondary else Color.White,
             fontSize = 16.sp,
             fontWeight = FontWeight.Normal,
+            textDecoration = if (isOver) TextDecoration.LineThrough else null,
             modifier = Modifier.weight(1f)
         )
+        
+        IconButton(
+            onClick = onToggleOver,
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(
+                imageVector = if (isOver) Icons.Default.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                contentDescription = if (isOver) "Mark as pending" else "Mark as over",
+                tint = if (isOver) Color(0xFF4CAF50) else TextSecondary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
     }
 }

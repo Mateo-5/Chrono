@@ -93,4 +93,10 @@ class NotesDataStore(private val context: Context) {
             preferences[NOTES_DATA] = gson.toJson(updatedData)
         }
     }
+    
+    suspend fun restoreData(data: NotesData) {
+        context.notesDataStore.edit { preferences ->
+            preferences[NOTES_DATA] = gson.toJson(data)
+        }
+    }
 }

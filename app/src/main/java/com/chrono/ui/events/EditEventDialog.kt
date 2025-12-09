@@ -1,7 +1,5 @@
 package com.chrono.ui.events
 
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,9 +15,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,13 +29,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.chrono.ui.theme.AccentBlue
 import com.chrono.ui.theme.TextPrimary
 import com.chrono.ui.theme.TextSecondary
 import java.text.SimpleDateFormat
@@ -50,18 +46,18 @@ fun EditEventDialog(
     title: String,
     initialTitle: String,
     initialDate: String,
-    initialTime: String,
+    initialTime: String = "",
     initialSubtitle: String,
+    initialIsYearly: Boolean = false,
     onDismiss: () -> Unit,
-    onConfirm: (title: String, date: String, time: String, subtitle: String) -> Unit,
+    onConfirm: (title: String, date: String, subtitle: String, isYearly: Boolean) -> Unit,
     onDelete: (() -> Unit)? = null
 ) {
-    val context = LocalContext.current
     var eventTitle by remember { mutableStateOf(initialTitle) }
     var eventSubtitle by remember { mutableStateOf(initialSubtitle) }
+    var isYearly by remember { mutableStateOf(initialIsYearly) }
     
     val calendar = remember { Calendar.getInstance() }
-    // Parse initial date if available
     val parsedInitial = remember {
         try {
             if (initialDate.isNotBlank()) {
@@ -75,19 +71,12 @@ fun EditEventDialog(
     var selectedYear by remember { mutableIntStateOf(calendar.get(Calendar.YEAR)) }
     var selectedMonth by remember { mutableIntStateOf(calendar.get(Calendar.MONTH)) }
     var selectedDay by remember { mutableIntStateOf(calendar.get(Calendar.DAY_OF_MONTH)) }
-    var selectedHour by remember { mutableIntStateOf(if (initialTime.isNotBlank()) initialTime.split(":").getOrNull(0)?.toIntOrNull() ?: 12 else 12) }
-    var selectedMinute by remember { mutableIntStateOf(if (initialTime.isNotBlank()) initialTime.split(":").getOrNull(1)?.toIntOrNull() ?: 0 else 0) }
     
     var dateSelected by remember { mutableStateOf(initialDate.isNotBlank()) }
-    var timeSelected by remember { mutableStateOf(initialTime.isNotBlank()) }
     
     val dateStr = if (dateSelected) {
         com.chrono.ui.components.formatDate(selectedDay, selectedMonth, selectedYear)
     } else "Select date"
-    
-    val timeStr = if (timeSelected) {
-        com.chrono.ui.components.formatTime(selectedHour, selectedMinute)
-    } else "Select time"
     
     Box(
         modifier = Modifier
@@ -124,7 +113,7 @@ fun EditEventDialog(
                 placeholder = "Event title"
             )
             
-            // Date Picker
+            // Date Picker (no time picker - full day events)
             com.chrono.ui.components.ThemedDatePicker(
                 label = "Date",
                 selectedDate = dateStr,
@@ -140,19 +129,53 @@ fun EditEventDialog(
                 initialDay = selectedDay
             )
             
-            // Time Picker
-            com.chrono.ui.components.ThemedTimePicker(
-                label = "Time",
-                selectedTime = timeStr,
-                isSelected = timeSelected,
-                onTimeSelected = { hour, minute ->
-                    selectedHour = hour
-                    selectedMinute = minute
-                    timeSelected = true
-                },
-                initialHour = selectedHour,
-                initialMinute = selectedMinute
-            )
+            // Yearly Event Toggle
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF121212))
+                    .border(1.dp, Color(0xFF3A3A3A), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Cake,
+                        contentDescription = null,
+                        tint = if (isYearly) Color.White else TextSecondary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "Yearly Event",
+                            color = TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "Birthday, Anniversary, etc.",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+                
+                Switch(
+                    checked = isYearly,
+                    onCheckedChange = { isYearly = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.Black,
+                        checkedTrackColor = Color.White,
+                        uncheckedThumbColor = TextSecondary,
+                        uncheckedTrackColor = Color(0xFF2A2A2A)
+                    )
+                )
+            }
             
             StyledTextField(
                 value = eventSubtitle,
@@ -210,7 +233,7 @@ fun EditEventDialog(
                         .clip(RoundedCornerShape(12.dp))
                         .background(if (canSave) Color.White else Color.White.copy(alpha = 0.4f))
                         .clickable(enabled = canSave) {
-                            onConfirm(eventTitle, dateStr, timeStr.takeIf { timeSelected } ?: "", eventSubtitle)
+                            onConfirm(eventTitle, dateStr, eventSubtitle, isYearly)
                         }
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center

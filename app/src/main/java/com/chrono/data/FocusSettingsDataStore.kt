@@ -42,4 +42,11 @@ class FocusSettingsDataStore(private val context: Context) {
             preferences[STRICT_DND_ENABLED] = enabled
         }
     }
+    
+    suspend fun restoreData(settings: FocusSettings) {
+        context.focusSettingsDataStore.edit { preferences ->
+            preferences[BLOCKED_PACKAGES] = settings.blockedPackageNames
+            preferences[STRICT_DND_ENABLED] = settings.isStrictDndEnabled
+        }
+    }
 }

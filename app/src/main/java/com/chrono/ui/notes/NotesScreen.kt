@@ -47,7 +47,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chrono.data.NotesDataStore
-import com.chrono.ui.theme.AccentBlue
 import com.chrono.ui.theme.BackgroundGradient
 import com.chrono.ui.theme.TextPrimary
 import com.chrono.ui.theme.TextSecondary
@@ -59,7 +58,8 @@ private val GlassBorder = Color(0x60FFFFFF)
 
 @Composable
 fun NotesScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNoteClick: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -70,10 +70,6 @@ fun NotesScreen(
     val navBarPadding = WindowInsets.navigationBars.asPaddingValues()
     
     var showAddDialog by remember { mutableStateOf(false) }
-    var showEditDialog by remember { mutableStateOf(false) }
-    var editNoteId by remember { mutableStateOf("") }
-    var editTitle by remember { mutableStateOf("") }
-    var editContent by remember { mutableStateOf("") }
     
     Box(
         modifier = Modifier
@@ -154,12 +150,7 @@ fun NotesScreen(
                             title = note.title,
                             content = note.content,
                             date = note.date,
-                            onClick = {
-                                editNoteId = note.id
-                                editTitle = note.title
-                                editContent = note.content
-                                showEditDialog = true
-                            }
+                            onClick = { onNoteClick(note.id) }
                         )
                     }
                 }
@@ -181,7 +172,7 @@ fun NotesScreen(
             )
         }
         
-        // Dialogs
+        // Add Dialog
         if (showAddDialog) {
             EditNoteDialog(
                 title = "Add Note",
@@ -194,27 +185,6 @@ fun NotesScreen(
                         notesDataStore.addNote(title, content, today)
                     }
                     showAddDialog = false
-                }
-            )
-        }
-        
-        if (showEditDialog) {
-            EditNoteDialog(
-                title = "Edit Note",
-                initialTitle = editTitle,
-                initialContent = editContent,
-                onDismiss = { showEditDialog = false },
-                onConfirm = { title, content ->
-                    scope.launch {
-                        notesDataStore.updateNote(editNoteId, title, content)
-                    }
-                    showEditDialog = false
-                },
-                onDelete = {
-                    scope.launch {
-                        notesDataStore.deleteNote(editNoteId)
-                    }
-                    showEditDialog = false
                 }
             )
         }

@@ -1,5 +1,8 @@
 package com.chrono.ui.events
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,11 +23,14 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Cake
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -46,8 +52,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chrono.data.EventEntry
 import com.chrono.data.EventsDataStore
-import com.chrono.ui.theme.AccentBlue
 import com.chrono.ui.theme.BackgroundGradient
 import com.chrono.ui.theme.TextPrimary
 import com.chrono.ui.theme.TextSecondary
@@ -72,8 +78,16 @@ fun EventsScreen(
     var editEventId by remember { mutableStateOf("") }
     var editTitle by remember { mutableStateOf("") }
     var editDate by remember { mutableStateOf("") }
-    var editTime by remember { mutableStateOf("") }
     var editSubtitle by remember { mutableStateOf("") }
+    var editIsYearly by remember { mutableStateOf(false) }
+    
+    // Dropdown states - collapsed by default
+    var yearlyExpanded by remember { mutableStateOf(false) }
+    var eventsExpanded by remember { mutableStateOf(false) }
+    
+    // Separate yearly and regular events
+    val yearlyEvents = eventsData.events.filter { it.isYearly }
+    val regularEvents = eventsData.events.filter { !it.isYearly }
     
     Box(
         modifier = Modifier
@@ -110,7 +124,7 @@ fun EventsScreen(
                 )
             }
             
-            // Events Timeline or Empty State
+            // Empty State or List
             if (eventsData.events.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -145,24 +159,85 @@ fun EventsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(eventsData.events, key = { it.id }) { event ->
-                        EventCard(
-                            title = event.title,
-                            date = event.date,
-                            time = event.time,
-                            subtitle = event.subtitle,
-                            onClick = {
-                                editEventId = event.id
-                                editTitle = event.title
-                                editDate = event.date
-                                editTime = event.time
-                                editSubtitle = event.subtitle
-                                showEditDialog = true
+                    // Yearly Events Section
+                    if (yearlyEvents.isNotEmpty()) {
+                        item {
+                            DropdownHeader(
+                                title = "Yearly Events",
+                                icon = Icons.Default.Cake,
+                                count = yearlyEvents.size,
+                                expanded = yearlyExpanded,
+                                onToggle = { yearlyExpanded = !yearlyExpanded }
+                            )
+                        }
+                        
+                        item {
+                            AnimatedVisibility(
+                                visible = yearlyExpanded,
+                                enter = expandVertically(),
+                                exit = shrinkVertically()
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    yearlyEvents.forEach { event ->
+                                        EventCard(
+                                            event = event,
+                                            onClick = {
+                                                editEventId = event.id
+                                                editTitle = event.title
+                                                editDate = event.date
+                                                editSubtitle = event.subtitle
+                                                editIsYearly = event.isYearly
+                                                showEditDialog = true
+                                            }
+                                        )
+                                    }
+                                }
                             }
-                        )
+                        }
+                        
+                        item { Spacer(modifier = Modifier.height(8.dp)) }
                     }
+                    
+                    // Regular Events Section
+                    if (regularEvents.isNotEmpty()) {
+                        item {
+                            DropdownHeader(
+                                title = "Events",
+                                icon = Icons.Default.Event,
+                                count = regularEvents.size,
+                                expanded = eventsExpanded,
+                                onToggle = { eventsExpanded = !eventsExpanded }
+                            )
+                        }
+                        
+                        item {
+                            AnimatedVisibility(
+                                visible = eventsExpanded,
+                                enter = expandVertically(),
+                                exit = shrinkVertically()
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    regularEvents.forEach { event ->
+                                        EventCard(
+                                            event = event,
+                                            onClick = {
+                                                editEventId = event.id
+                                                editTitle = event.title
+                                                editDate = event.date
+                                                editSubtitle = event.subtitle
+                                                editIsYearly = event.isYearly
+                                                showEditDialog = true
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    item { Spacer(modifier = Modifier.height(80.dp)) }
                 }
             }
         }
@@ -188,12 +263,12 @@ fun EventsScreen(
                 title = "Add Event",
                 initialTitle = "",
                 initialDate = "",
-                initialTime = "",
                 initialSubtitle = "",
+                initialIsYearly = false,
                 onDismiss = { showAddDialog = false },
-                onConfirm = { title, date, time, subtitle ->
+                onConfirm = { title, date, subtitle, isYearly ->
                     scope.launch {
-                        eventsDataStore.addEvent(title, date, time, subtitle)
+                        eventsDataStore.addEvent(title, date, subtitle, isYearly)
                     }
                     showAddDialog = false
                 }
@@ -205,12 +280,12 @@ fun EventsScreen(
                 title = "Edit Event",
                 initialTitle = editTitle,
                 initialDate = editDate,
-                initialTime = editTime,
                 initialSubtitle = editSubtitle,
+                initialIsYearly = editIsYearly,
                 onDismiss = { showEditDialog = false },
-                onConfirm = { title, date, time, subtitle ->
+                onConfirm = { title, date, subtitle, isYearly ->
                     scope.launch {
-                        eventsDataStore.updateEvent(editEventId, title, time, subtitle)
+                        eventsDataStore.updateEvent(editEventId, title, subtitle, isYearly)
                     }
                     showEditDialog = false
                 },
@@ -226,11 +301,65 @@ fun EventsScreen(
 }
 
 @Composable
-private fun EventCard(
+private fun DropdownHeader(
     title: String,
-    date: String,
-    time: String,
-    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF1A1A1A))
+            .clickable(onClick = onToggle)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF2A2A2A))
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = count.toString(),
+                    color = TextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+        
+        Icon(
+            imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+            contentDescription = if (expanded) "Collapse" else "Expand",
+            tint = TextSecondary
+        )
+    }
+}
+
+@Composable
+private fun EventCard(
+    event: EventEntry,
     onClick: () -> Unit
 ) {
     Box(
@@ -259,19 +388,18 @@ private fun EventCard(
                 modifier = Modifier
                     .size(60.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF1A1A1A)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = date.substringBefore("-"),
+                        text = event.date.substringBefore("-"),
                         color = Color.White,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = date.substringAfter("-").take(3),
+                        text = event.date.substringAfter("-").take(3),
                         color = Color.White,
                         fontSize = 11.sp
                     )
@@ -282,21 +410,37 @@ private fun EventCard(
             
             // Event details
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = time,
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                if (subtitle.isNotEmpty()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text(
-                        text = subtitle,
+                        text = event.title,
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (event.isYearly) {
+                        Icon(
+                            imageVector = Icons.Default.Cake,
+                            contentDescription = "Yearly",
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                
+                if (event.isYearly) {
+                    Text(
+                        text = "Repeats yearly",
+                        color = TextSecondary,
+                        fontSize = 13.sp
+                    )
+                }
+                
+                if (event.subtitle.isNotEmpty()) {
+                    Text(
+                        text = event.subtitle,
                         color = TextSecondary,
                         fontSize = 13.sp
                     )

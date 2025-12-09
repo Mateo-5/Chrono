@@ -75,4 +75,10 @@ class TimetableDataStore(private val context: Context) {
             preferences[TIMETABLE_DATA] = gson.toJson(updatedData)
         }
     }
+    
+    suspend fun restoreData(data: TimetableData) {
+        context.timetableDataStore.edit { preferences ->
+            preferences[TIMETABLE_DATA] = gson.toJson(data)
+        }
+    }
 }

@@ -15,6 +15,10 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    
+    <!-- Storage Permissions for Backup -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 
     <application
         android:allowBackup="true"
@@ -43,9 +47,21 @@
         
         <activity
             android:name=".notification.FullScreenReminderActivity"
+            android:exported="true"
             android:showOnLockScreen="true"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
+            android:launchMode="singleInstance"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.Chrono" />
+            
+        <activity
+            android:name=".notification.PriorityTaskFailedActivity"
+            android:showOnLockScreen="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
             android:theme="@style/Theme.Chrono" />
             
         <!-- Focus Mode Components -->

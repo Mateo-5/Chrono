@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,6 +31,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
@@ -140,6 +144,114 @@ fun SettingsScreen(
             }
             
             Spacer(modifier = Modifier.height(24.dp))
+            
+            // Visibility Assist Section (at top)
+            Text(
+                text = "VISIBILITY ASSIST",
+                color = TextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 8.dp, bottom = 12.dp)
+            )
+            
+            val textScale by settingsDataStore.textScale.collectAsState(initial = 1.0f)
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0x30FFFFFF),
+                                Color(0x10FFFFFF)
+                            )
+                        )
+                    )
+                    .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
+                    .padding(20.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        text = "Text & Icon Size",
+                        color = TextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    
+                    Text(
+                        text = "Adjust the size of text and icons throughout the app",
+                        color = TextSecondary,
+                        fontSize = 13.sp
+                    )
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            0.85f to "Small",
+                            1.0f to "Normal",
+                            1.15f to "Large",
+                            1.3f to "XL"
+                        ).forEach { (scale, label) ->
+                            val isSelected = kotlin.math.abs(textScale - scale) < 0.01f
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        if (isSelected) Color.White
+                                        else Color(0xFF1A1A1A)
+                                    )
+                                    .border(
+                                        width = 1.dp,
+                                        color = if (isSelected) Color.White else GlassBorder,
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable {
+                                        scope.launch {
+                                            settingsDataStore.setTextScale(scale)
+                                        }
+                                    }
+                                    .padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) Color.Black else TextSecondary,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF1A1A1A))
+                            .padding(16.dp)
+                    ) {
+                        Column {
+                            Text(
+                                text = "Preview",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Sample text at ${(textScale * 100).toInt()}% size",
+                                color = TextPrimary,
+                                fontSize = (14 * textScale).sp
+                            )
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(32.dp))
             
             // Water Break Section
             Text(
@@ -427,6 +539,160 @@ fun SettingsScreen(
             
             Spacer(modifier = Modifier.height(32.dp))
             
+            // Backup & Restore Section
+            Text(
+                text = "BACKUP & RESTORE",
+                color = TextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 8.dp, bottom = 12.dp)
+            )
+            
+            val backupManager = remember { com.chrono.data.BackupManager(context) }
+            var backupStatus by remember { mutableStateOf<String?>(null) }
+            var isExporting by remember { mutableStateOf(false) }
+            var isImporting by remember { mutableStateOf(false) }
+            
+            // File picker launcher for import
+            val filePickerLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.OpenDocument()
+            ) { uri ->
+                if (uri != null) {
+                    isImporting = true
+                    backupStatus = null
+                    scope.launch {
+                        try {
+                            val inputStream = context.contentResolver.openInputStream(uri)
+                            val json = inputStream?.bufferedReader()?.use { it.readText() }
+                            inputStream?.close()
+                            
+                            if (json != null) {
+                                val result = backupManager.importFromJson(json)
+                                isImporting = false
+                                backupStatus = result.fold(
+                                    onSuccess = { it },
+                                    onFailure = { "Import failed: ${it.message}" }
+                                )
+                            } else {
+                                isImporting = false
+                                backupStatus = "Import failed: Could not read file"
+                            }
+                        } catch (e: Exception) {
+                            isImporting = false
+                            backupStatus = "Import failed: ${e.message}"
+                        }
+                    }
+                }
+            }
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0x30FFFFFF),
+                                Color(0x10FFFFFF)
+                            )
+                        )
+                    )
+                    .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
+                    .padding(20.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    
+                    Text(
+                        text = "Your data is saved locally. Export to back up or restore from a previous backup.",
+                        color = TextSecondary,
+                        fontSize = 13.sp
+                    )
+                    
+                    // Export Button
+                    Button(
+                        onClick = {
+                            isExporting = true
+                            backupStatus = null
+                            scope.launch {
+                                val result = backupManager.exportData()
+                                isExporting = false
+                                backupStatus = result.fold(
+                                    onSuccess = { "Exported to Downloads/Chrono" },
+                                    onFailure = { "Export failed: ${it.message}" }
+                                )
+                            }
+                        },
+                        enabled = !isExporting && !isImporting,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Color.Black
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isExporting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.Black,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(
+                            text = if (isExporting) "Exporting..." else "Export Data",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    
+                    // Import Button
+                    Button(
+                        onClick = {
+                            // Open file picker to select backup JSON file
+                            filePickerLauncher.launch(arrayOf("application/json", "*/*"))
+                        },
+                        enabled = !isExporting && !isImporting,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2A2A2A),
+                            contentColor = Color.White,
+                            disabledContainerColor = Color(0xFF1A1A1A),
+                            disabledContentColor = TextSecondary.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isImporting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(
+                            text = if (isImporting) "Importing..." else "Import Data",
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    
+                    // Info text
+                    Text(
+                        text = "Tap Import and select your backup file from Downloads/Chrono",
+                        color = TextSecondary,
+                        fontSize = 11.sp
+                    )
+                    
+                    // Status message
+                    if (backupStatus != null) {
+                        Text(
+                            text = backupStatus!!,
+                            color = if (backupStatus!!.contains("failed")) Color(0xFFFF6B6B) else Color(0xFF4CAF50),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
             // Permissions Section
             Text(
                 text = "PERMISSIONS",
@@ -524,7 +790,7 @@ fun SettingsScreen(
                             fontSize = 14.sp
                         )
                         Text(
-                            text = "1.0.0",
+                            text = "1.1.0",
                             color = TextPrimary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
