@@ -364,19 +364,23 @@ private fun scheduleRepeatingAlarm(context: android.content.Context, title: Stri
         val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
         val intent = android.content.Intent(context, com.chrono.notification.AlarmReceiver::class.java).apply {
             putExtra("title", title)
+            putExtra("is_repeating", true)
+            putExtra("repeat_hour", hour)
+            putExtra("repeat_minute", minute)
         }
         
         val calendar = java.util.Calendar.getInstance().apply {
             set(java.util.Calendar.HOUR_OF_DAY, hour)
             set(java.util.Calendar.MINUTE, minute)
             set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
             
             if (before(java.util.Calendar.getInstance())) {
                 add(java.util.Calendar.DAY_OF_MONTH, 1)
             }
         }
         
-        val requestCode = (hour * 60 + minute)
+        val requestCode = (hour * 60 + minute) + 10000 // Offset to avoid collision
         
         val pendingIntent = android.app.PendingIntent.getBroadcast(
             context,
@@ -385,12 +389,28 @@ private fun scheduleRepeatingAlarm(context: android.content.Context, title: Stri
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
         
-        alarmManager.setRepeating(
-            android.app.AlarmManager.RTC_WAKEUP,
-            calendar.timeInMillis,
-            android.app.AlarmManager.INTERVAL_DAY,
-            pendingIntent
-        )
+        // Use exact alarm instead of setRepeating (which is inexact on modern Android)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            if (alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    android.app.AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    android.app.AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            }
+        } else {
+            alarmManager.setExactAndAllowWhileIdle(
+                android.app.AlarmManager.RTC_WAKEUP,
+                calendar.timeInMillis,
+                pendingIntent
+            )
+        }
     } catch (e: Exception) {
         e.printStackTrace()
     }

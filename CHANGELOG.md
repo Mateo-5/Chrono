@@ -2,6 +2,32 @@
 
 All notable changes to Chrono will be documented in this file.
 
+## [1.1.1] - 2025-12-10
+
+### 🐛 Bug Fixes
+
+#### Reminder Timing
+- **Fixed**: Reminders now fire at exact scheduled time
+- **Fixed**: Added wake lock to ensure device wakes up for alarms
+- **Fixed**: Repeating alarms now use exact scheduling instead of inexact `setRepeating()`
+- **Fixed**: Repeating alarms properly reschedule for next day after firing
+
+#### Notes Input
+- **Fixed**: Word duplication bug when typing in notes
+- **Fixed**: Removed blocking keyboardActions that interfered with IME composition
+
+### ✨ Improvements
+
+#### Multilingual Support
+- All text fields now properly support multilingual input (Malayalam, Hindi, etc.)
+- Improved IME composition handling for complex scripts
+
+### 🔐 Permissions
+- Added `USE_EXACT_ALARM` for Android 13+ exact alarm scheduling
+- Added `RECEIVE_BOOT_COMPLETED` for alarm persistence
+
+---
+
 ## [1.1.0] - 2025-12-09
 
 ### ✨ New Features

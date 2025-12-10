@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -184,7 +186,10 @@ fun NoteDetailScreen(
                             fontWeight = FontWeight.Bold
                         ),
                         cursorBrush = SolidColor(Color.White),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Sentences,
+                            imeAction = ImeAction.Next
+                        ),
                         modifier = Modifier.fillMaxWidth(),
                         decorationBox = { innerTextField ->
                             Box {
@@ -225,7 +230,11 @@ fun NoteDetailScreen(
                             lineHeight = 26.sp
                         ),
                         cursorBrush = SolidColor(Color.White),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Sentences,
+                            keyboardType = KeyboardType.Text
+                            // No imeAction - allows natural multiline and IME composition
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),

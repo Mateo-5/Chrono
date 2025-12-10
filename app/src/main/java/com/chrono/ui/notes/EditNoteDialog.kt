@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -134,20 +133,10 @@ fun EditNoteDialog(
                     minLines = 5,
                     maxLines = 10,
                     placeholder = { Text("Write your note...") },
-                    // Do NOT specify imeAction for multiline - let system handle it naturally
+                    // Use natural multiline keyboard - no imeAction specified
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Sentences,
                         keyboardType = KeyboardType.Text
-                        // No imeAction specified = natural multiline behavior
-                    ),
-                    // Explicitly block all keyboard actions from doing anything
-                    keyboardActions = KeyboardActions(
-                        onDone = { /* Block - do nothing */ },
-                        onGo = { /* Block - do nothing */ },
-                        onNext = { /* Block - do nothing */ },
-                        onPrevious = { /* Block - do nothing */ },
-                        onSearch = { /* Block - do nothing */ },
-                        onSend = { /* Block - do nothing */ }
                     ),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                         focusedTextColor = TextPrimary,
