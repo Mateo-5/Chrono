@@ -42,3 +42,25 @@
 
 # Keep security classes
 -keep class com.chrono.security.** { *; }
+
+# ==========================================
+# Crypto / EncryptedSharedPreferences Rules
+# ==========================================
+
+# Missing annotation classes (used by Google Tink)
+-dontwarn javax.annotation.**
+
+# Tink uses optional dependencies we don't need
+-dontwarn com.google.api.client.**
+-dontwarn org.joda.time.**
+-dontwarn com.google.errorprone.**
+-dontwarn com.google.j2objc.**
+-dontwarn afu.org.checkerframework.**
+-dontwarn org.checkerframework.**
+
+# Keep Google Tink crypto classes
+-keep class com.google.crypto.tink.** { *; }
+-keepclassmembers class com.google.crypto.tink.** { *; }
+
+# Keep AndroidX Security Crypto
+-keep class androidx.security.crypto.** { *; }
