@@ -1,17 +1,13 @@
 package com.chrono.data
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import com.chrono.security.EncryptedPreferencesManager
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-
-private val Context.timetableDataStore: DataStore<Preferences> by preferencesDataStore(name = "timetable")
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 
 data class TimetableData(
     val timePeriods: List<String> = listOf("9:00\nAM", "10:00\nAM", "11:00\nAM", "12:00\nPM", "1:00\nPM", "2:00\nPM"),
@@ -27,58 +23,56 @@ data class TimetableData(
 class TimetableDataStore(private val context: Context) {
     
     companion object {
-        private val TIMETABLE_DATA = stringPreferencesKey("timetable_data")
+        private const val KEY_TIMETABLE_DATA = "timetable_data"
         private val gson = Gson()
     }
     
-    val timetableData: Flow<TimetableData> = context.timetableDataStore.data.map { preferences ->
-        val json = preferences[TIMETABLE_DATA]
-        if (json != null) {
-            gson.fromJson(json, TimetableData::class.java)
+    private val encryptedPrefs by lazy {
+        EncryptedPreferencesManager.getEncryptedPrefs(context)
+    }
+    
+    private val _timetableDataFlow = MutableStateFlow(loadTimetableData())
+    
+    val timetableData: Flow<TimetableData> = _timetableDataFlow.asStateFlow()
+    
+    private fun loadTimetableData(): TimetableData {
+        val json = encryptedPrefs.getString(KEY_TIMETABLE_DATA, null)
+        return if (json != null) {
+            try {
+                gson.fromJson(json, TimetableData::class.java) ?: TimetableData()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                TimetableData()
+            }
         } else {
             TimetableData()
         }
     }
     
+    private suspend fun saveTimetableData(data: TimetableData) = withContext(Dispatchers.IO) {
+        encryptedPrefs.edit().putString(KEY_TIMETABLE_DATA, gson.toJson(data)).apply()
+        _timetableDataFlow.value = data
+    }
+    
     suspend fun updateSchedule(day: String, periodIndex: Int, subject: String) {
-        context.timetableDataStore.edit { preferences ->
-            val currentJson = preferences[TIMETABLE_DATA]
-            val currentData = if (currentJson != null) {
-                gson.fromJson(currentJson, TimetableData::class.java)
-            } else {
-                TimetableData()
-            }
-            
-            val updatedSchedule = currentData.schedule.toMutableMap()
-            val daySchedule = updatedSchedule[day]?.toMutableList() ?: MutableList(6) { "" }
-            daySchedule[periodIndex] = subject
-            updatedSchedule[day] = daySchedule
-            
-            val updatedData = currentData.copy(schedule = updatedSchedule)
-            preferences[TIMETABLE_DATA] = gson.toJson(updatedData)
-        }
+        val currentData = _timetableDataFlow.value
+        val updatedSchedule = currentData.schedule.toMutableMap()
+        val daySchedule = updatedSchedule[day]?.toMutableList() ?: MutableList(6) { "" }
+        daySchedule[periodIndex] = subject
+        updatedSchedule[day] = daySchedule
+        
+        saveTimetableData(currentData.copy(schedule = updatedSchedule))
     }
     
     suspend fun updateTimePeriod(periodIndex: Int, timeLabel: String) {
-        context.timetableDataStore.edit { preferences ->
-            val currentJson = preferences[TIMETABLE_DATA]
-            val currentData = if (currentJson != null) {
-                gson.fromJson(currentJson, TimetableData::class.java)
-            } else {
-                TimetableData()
-            }
-            
-            val updatedPeriods = currentData.timePeriods.toMutableList()
-            updatedPeriods[periodIndex] = timeLabel
-            
-            val updatedData = currentData.copy(timePeriods = updatedPeriods)
-            preferences[TIMETABLE_DATA] = gson.toJson(updatedData)
-        }
+        val currentData = _timetableDataFlow.value
+        val updatedPeriods = currentData.timePeriods.toMutableList()
+        updatedPeriods[periodIndex] = timeLabel
+        
+        saveTimetableData(currentData.copy(timePeriods = updatedPeriods))
     }
     
     suspend fun restoreData(data: TimetableData) {
-        context.timetableDataStore.edit { preferences ->
-            preferences[TIMETABLE_DATA] = gson.toJson(data)
-        }
+        saveTimetableData(data)
     }
 }

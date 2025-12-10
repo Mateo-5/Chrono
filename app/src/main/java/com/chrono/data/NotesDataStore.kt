@@ -1,16 +1,13 @@
 package com.chrono.data
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import com.chrono.security.EncryptedPreferencesManager
 import com.google.gson.Gson
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-
-private val Context.notesDataStore: DataStore<Preferences> by preferencesDataStore(name = "notes")
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 
 data class NoteEntry(
     val id: String,
@@ -26,77 +23,64 @@ data class NotesData(
 class NotesDataStore(private val context: Context) {
     
     companion object {
-        private val NOTES_DATA = stringPreferencesKey("notes_data")
+        private const val KEY_NOTES_DATA = "notes_data"
         private val gson = Gson()
     }
     
-    val notesData: Flow<NotesData> = context.notesDataStore.data.map { preferences ->
-        val json = preferences[NOTES_DATA]
-        if (json != null) {
-            gson.fromJson(json, NotesData::class.java)
+    private val encryptedPrefs by lazy {
+        EncryptedPreferencesManager.getEncryptedPrefs(context)
+    }
+    
+    private val _notesDataFlow = MutableStateFlow(loadNotesData())
+    
+    val notesData: Flow<NotesData> = _notesDataFlow.asStateFlow()
+    
+    private fun loadNotesData(): NotesData {
+        val json = encryptedPrefs.getString(KEY_NOTES_DATA, null)
+        return if (json != null) {
+            try {
+                gson.fromJson(json, NotesData::class.java) ?: NotesData()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                NotesData()
+            }
         } else {
             NotesData()
         }
     }
     
+    private suspend fun saveNotesData(data: NotesData) = withContext(Dispatchers.IO) {
+        encryptedPrefs.edit().putString(KEY_NOTES_DATA, gson.toJson(data)).apply()
+        _notesDataFlow.value = data
+    }
+    
     suspend fun addNote(title: String, content: String, date: String) {
-        context.notesDataStore.edit { preferences ->
-            val currentJson = preferences[NOTES_DATA]
-            val currentData = if (currentJson != null) {
-                gson.fromJson(currentJson, NotesData::class.java)
-            } else {
-                NotesData()
-            }
-            
-            val id = System.currentTimeMillis().toString()
-            val updatedNotes = currentData.notes.toMutableList()
-            updatedNotes.add(0, NoteEntry(id, title, content, date))
-            
-            val updatedData = currentData.copy(notes = updatedNotes)
-            preferences[NOTES_DATA] = gson.toJson(updatedData)
-        }
+        val currentData = _notesDataFlow.value
+        val id = System.currentTimeMillis().toString()
+        val updatedNotes = currentData.notes.toMutableList()
+        updatedNotes.add(0, NoteEntry(id, title, content, date))
+        saveNotesData(currentData.copy(notes = updatedNotes))
     }
     
     suspend fun updateNote(id: String, title: String, content: String) {
-        context.notesDataStore.edit { preferences ->
-            val currentJson = preferences[NOTES_DATA]
-            val currentData = if (currentJson != null) {
-                gson.fromJson(currentJson, NotesData::class.java)
+        val currentData = _notesDataFlow.value
+        val updatedNotes = currentData.notes.map { note ->
+            if (note.id == id) {
+                note.copy(title = title, content = content)
             } else {
-                NotesData()
+                note
             }
-            
-            val updatedNotes = currentData.notes.map { note ->
-                if (note.id == id) {
-                    note.copy(title = title, content = content)
-                } else {
-                    note
-                }
-            }
-            
-            val updatedData = currentData.copy(notes = updatedNotes)
-            preferences[NOTES_DATA] = gson.toJson(updatedData)
         }
+        saveNotesData(currentData.copy(notes = updatedNotes))
     }
     
     suspend fun deleteNote(id: String) {
-        context.notesDataStore.edit { preferences ->
-            val currentJson = preferences[NOTES_DATA]
-            val currentData = if (currentJson != null) {
-                gson.fromJson(currentJson, NotesData::class.java)
-            } else {
-                NotesData()
-            }
-            
-            val updatedNotes = currentData.notes.filter { it.id != id }
-            val updatedData = currentData.copy(notes = updatedNotes)
-            preferences[NOTES_DATA] = gson.toJson(updatedData)
-        }
+        val currentData = _notesDataFlow.value
+        val updatedNotes = currentData.notes.filter { it.id != id }
+        saveNotesData(currentData.copy(notes = updatedNotes))
     }
     
     suspend fun restoreData(data: NotesData) {
-        context.notesDataStore.edit { preferences ->
-            preferences[NOTES_DATA] = gson.toJson(data)
-        }
+        saveNotesData(data)
     }
 }

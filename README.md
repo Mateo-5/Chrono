@@ -83,7 +83,7 @@ The development process involved:
 
 ## Version
 
-**Current**: v1.0.0
+**Current**: v2.0.0
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 

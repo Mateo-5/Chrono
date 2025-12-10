@@ -19,3 +19,26 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# ==========================================
+# Chrono Security Rules
+# ==========================================
+
+# Keep Gson serialization working
+-keepattributes Signature
+-keepattributes *Annotation*
+
+# Keep all data classes used with Gson
+-keep class com.chrono.data.** { *; }
+
+# Keep Gson classes
+-keep class com.google.gson.** { *; }
+-keepclassmembers,allowobfuscation class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
+
+# Keep Compose classes
+-keep class androidx.compose.** { *; }
+
+# Keep security classes
+-keep class com.chrono.security.** { *; }

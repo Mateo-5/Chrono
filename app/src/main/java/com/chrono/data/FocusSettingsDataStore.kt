@@ -1,16 +1,13 @@
 package com.chrono.data
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringSetPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import com.chrono.security.EncryptedPreferencesManager
+import com.google.gson.Gson
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-
-private val Context.focusSettingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "focus_settings")
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 
 data class FocusSettings(
     val blockedPackageNames: Set<String> = emptySet(),
@@ -18,35 +15,50 @@ data class FocusSettings(
 )
 
 class FocusSettingsDataStore(private val context: Context) {
-
+    
     companion object {
-        private val BLOCKED_PACKAGES = stringSetPreferencesKey("blocked_packages")
-        private val STRICT_DND_ENABLED = booleanPreferencesKey("strict_dnd_enabled")
+        private const val KEY_FOCUS_SETTINGS = "focus_settings"
+        private val gson = Gson()
     }
-
-    val focusSettings: Flow<FocusSettings> = context.focusSettingsDataStore.data.map { preferences ->
-        FocusSettings(
-            blockedPackageNames = preferences[BLOCKED_PACKAGES] ?: emptySet(),
-            isStrictDndEnabled = preferences[STRICT_DND_ENABLED] ?: true
-        )
+    
+    private val encryptedPrefs by lazy {
+        EncryptedPreferencesManager.getEncryptedPrefs(context)
     }
-
-    suspend fun updateBlockedPackages(packages: Set<String>) {
-        context.focusSettingsDataStore.edit { preferences ->
-            preferences[BLOCKED_PACKAGES] = packages
-        }
-    }
-
-    suspend fun updateStrictDndEnabled(enabled: Boolean) {
-        context.focusSettingsDataStore.edit { preferences ->
-            preferences[STRICT_DND_ENABLED] = enabled
+    
+    private val _focusSettingsFlow = MutableStateFlow(loadFocusSettings())
+    
+    val focusSettings: Flow<FocusSettings> = _focusSettingsFlow.asStateFlow()
+    
+    private fun loadFocusSettings(): FocusSettings {
+        val json = encryptedPrefs.getString(KEY_FOCUS_SETTINGS, null)
+        return if (json != null) {
+            try {
+                gson.fromJson(json, FocusSettings::class.java) ?: FocusSettings()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                FocusSettings()
+            }
+        } else {
+            FocusSettings()
         }
     }
     
+    private suspend fun saveFocusSettings(settings: FocusSettings) = withContext(Dispatchers.IO) {
+        encryptedPrefs.edit().putString(KEY_FOCUS_SETTINGS, gson.toJson(settings)).apply()
+        _focusSettingsFlow.value = settings
+    }
+    
+    suspend fun updateBlockedPackages(packages: Set<String>) {
+        val current = _focusSettingsFlow.value
+        saveFocusSettings(current.copy(blockedPackageNames = packages))
+    }
+    
+    suspend fun updateStrictDndEnabled(enabled: Boolean) {
+        val current = _focusSettingsFlow.value
+        saveFocusSettings(current.copy(isStrictDndEnabled = enabled))
+    }
+    
     suspend fun restoreData(settings: FocusSettings) {
-        context.focusSettingsDataStore.edit { preferences ->
-            preferences[BLOCKED_PACKAGES] = settings.blockedPackageNames
-            preferences[STRICT_DND_ENABLED] = settings.isStrictDndEnabled
-        }
+        saveFocusSettings(settings)
     }
 }

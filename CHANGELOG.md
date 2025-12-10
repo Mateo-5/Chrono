@@ -2,6 +2,46 @@
 
 All notable changes to Chrono will be documented in this file.
 
+## [2.0.0] - 2025-12-10
+
+### 🔐 Security Hardening
+
+#### Encrypted Storage
+- **All data now encrypted at rest** using AES-256 via EncryptedSharedPreferences
+- Data stored in Android Keystore-backed encrypted storage
+- Automatic migration of existing data on first launch
+
+#### Anti-Extraction
+- **ADB backup disabled** - Data cannot be extracted via `adb backup`
+- **Cloud backup blocked** - Data excluded from Google Drive backup
+- **Device transfer blocked** - Data excluded during device migration
+
+#### Build Protection
+- **ProGuard/R8 enabled** for release builds
+- Code obfuscation makes reverse engineering harder
+- Resource shrinking for smaller APK size
+
+#### Runtime Security
+- **Root detection** - Warns if device is rooted
+- **Debugger detection** - Detects attached debuggers
+- **Emulator detection** - Identifies emulator environments
+
+#### Encrypted Backups
+- Backup exports now use `.chrono` format with AES-128 encryption
+- Legacy `.json` backups still supported for import (backward compatible)
+
+### 📦 New Components
+- `EncryptedPreferencesManager` - Secure storage wrapper
+- `SecurityManager` - Runtime security checks
+- `DataMigrationManager` - Automatic data migration
+
+### 🔧 Technical Changes
+- All 9 DataStores migrated to encrypted SharedPreferences
+- Added `data_extraction_rules.xml` for Android 12+ backup control
+- Updated ProGuard rules for Gson serialization
+
+---
+
 ## [1.1.1] - 2025-12-10
 
 ### 🐛 Bug Fixes

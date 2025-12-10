@@ -1,95 +1,71 @@
 package com.chrono.data
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.floatPreferencesKey
-import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import com.chrono.security.EncryptedPreferencesManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 
 class SettingsDataStore(private val context: Context) {
     
     companion object {
-        private val WATER_BREAK_ENABLED = booleanPreferencesKey("water_break_enabled")
-        private val WATER_BREAK_INTERVAL = intPreferencesKey("water_break_interval_minutes")
+        private const val KEY_WATER_BREAK_ENABLED = "water_break_enabled"
+        private const val KEY_WATER_BREAK_INTERVAL = "water_break_interval_minutes"
+        private const val KEY_FOCUS_DURATION = "focus_duration"
+        private const val KEY_BREAK_DURATION = "break_duration"
+        private const val KEY_SOUND_EFFECTS = "sound_effects"
+        private const val KEY_TEXT_SCALE = "text_scale"
         
-        private val FOCUS_DURATION = intPreferencesKey("focus_duration")
-        private val BREAK_DURATION = intPreferencesKey("break_duration")
-        private val SOUND_EFFECTS = booleanPreferencesKey("sound_effects")
-        
-        private val TEXT_SCALE = floatPreferencesKey("text_scale")
-        
-        const val DEFAULT_INTERVAL = 60 // 1 hour in minutes
+        const val DEFAULT_INTERVAL = 60
     }
     
-    val waterBreakEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[WATER_BREAK_ENABLED] ?: false
+    private val encryptedPrefs by lazy {
+        EncryptedPreferencesManager.getEncryptedPrefs(context)
     }
     
-    val waterBreakInterval: Flow<Int> = context.dataStore.data.map { preferences ->
-        preferences[WATER_BREAK_INTERVAL] ?: DEFAULT_INTERVAL
+    private val _waterBreakEnabled = MutableStateFlow(encryptedPrefs.getBoolean(KEY_WATER_BREAK_ENABLED, false))
+    private val _waterBreakInterval = MutableStateFlow(encryptedPrefs.getInt(KEY_WATER_BREAK_INTERVAL, DEFAULT_INTERVAL))
+    private val _focusDuration = MutableStateFlow(encryptedPrefs.getInt(KEY_FOCUS_DURATION, 25))
+    private val _breakDuration = MutableStateFlow(encryptedPrefs.getInt(KEY_BREAK_DURATION, 5))
+    private val _soundEffectsEnabled = MutableStateFlow(encryptedPrefs.getBoolean(KEY_SOUND_EFFECTS, true))
+    private val _textScale = MutableStateFlow(encryptedPrefs.getFloat(KEY_TEXT_SCALE, 1.0f))
+    
+    val waterBreakEnabled: Flow<Boolean> = _waterBreakEnabled.asStateFlow()
+    val waterBreakInterval: Flow<Int> = _waterBreakInterval.asStateFlow()
+    val focusDuration: Flow<Int> = _focusDuration.asStateFlow()
+    val breakDuration: Flow<Int> = _breakDuration.asStateFlow()
+    val soundEffectsEnabled: Flow<Boolean> = _soundEffectsEnabled.asStateFlow()
+    val textScale: Flow<Float> = _textScale.asStateFlow()
+    
+    suspend fun setWaterBreakEnabled(enabled: Boolean) = withContext(Dispatchers.IO) {
+        encryptedPrefs.edit().putBoolean(KEY_WATER_BREAK_ENABLED, enabled).apply()
+        _waterBreakEnabled.value = enabled
     }
     
-    val focusDuration: Flow<Int> = context.dataStore.data.map { preferences ->
-        preferences[FOCUS_DURATION] ?: 25
+    suspend fun setWaterBreakInterval(minutes: Int) = withContext(Dispatchers.IO) {
+        encryptedPrefs.edit().putInt(KEY_WATER_BREAK_INTERVAL, minutes).apply()
+        _waterBreakInterval.value = minutes
     }
     
-    val breakDuration: Flow<Int> = context.dataStore.data.map { preferences ->
-        preferences[BREAK_DURATION] ?: 5
+    suspend fun setFocusDuration(minutes: Int) = withContext(Dispatchers.IO) {
+        encryptedPrefs.edit().putInt(KEY_FOCUS_DURATION, minutes).apply()
+        _focusDuration.value = minutes
     }
     
-    val soundEffectsEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[SOUND_EFFECTS] ?: true
+    suspend fun setBreakDuration(minutes: Int) = withContext(Dispatchers.IO) {
+        encryptedPrefs.edit().putInt(KEY_BREAK_DURATION, minutes).apply()
+        _breakDuration.value = minutes
     }
     
-    val textScale: Flow<Float> = context.dataStore.data.map { preferences ->
-        preferences[TEXT_SCALE] ?: 1.0f
+    suspend fun setSoundEffectsEnabled(enabled: Boolean) = withContext(Dispatchers.IO) {
+        encryptedPrefs.edit().putBoolean(KEY_SOUND_EFFECTS, enabled).apply()
+        _soundEffectsEnabled.value = enabled
     }
     
-    suspend fun setWaterBreakEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[WATER_BREAK_ENABLED] = enabled
-        }
-    }
-    
-    suspend fun setWaterBreakInterval(minutes: Int) {
-        context.dataStore.edit { preferences ->
-            preferences[WATER_BREAK_INTERVAL] = minutes
-        }
-    }
-    
-    suspend fun setFocusDuration(minutes: Int) {
-        context.dataStore.edit { preferences ->
-            preferences[FOCUS_DURATION] = minutes
-        }
-    }
-    
-    suspend fun setBreakDuration(minutes: Int) {
-        context.dataStore.edit { preferences ->
-            preferences[BREAK_DURATION] = minutes
-        }
-    }
-    
-    suspend fun setSoundEffectsEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[SOUND_EFFECTS] = enabled
-        }
-    }
-    
-    suspend fun setTextScale(scale: Float) {
-        context.dataStore.edit { preferences ->
-            preferences[TEXT_SCALE] = scale
-        }
-        // Also write to SharedPreferences for global access
-        context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
-            .edit()
-            .putFloat("text_scale", scale)
-            .apply()
+    suspend fun setTextScale(scale: Float) = withContext(Dispatchers.IO) {
+        encryptedPrefs.edit().putFloat(KEY_TEXT_SCALE, scale).apply()
+        _textScale.value = scale
     }
 }
