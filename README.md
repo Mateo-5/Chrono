@@ -37,12 +37,18 @@ A modern, minimalist productivity app for Android built with Jetpack Compose.
 - Focus timer duration configuration
 - Permission management
 
+### 🔐 Security (v2.0.0)
+- **Encrypted Storage**: All data encrypted at rest with AES-256
+- **Anti-Extraction**: ADB backup and cloud sync disabled
+- **Runtime Protection**: Root, debugger, and emulator detection
+- **Secure Backups**: Encrypted backup exports
+
 ## Tech Stack
 
 - **Language**: Kotlin
 - **UI**: Jetpack Compose (Material 3)
 - **Architecture**: Single-activity with Compose Navigation
-- **Data Persistence**: DataStore with Gson serialization
+- **Data Persistence**: EncryptedSharedPreferences (AES-256)
 - **Background Work**: WorkManager, Foreground Services
 - **Notifications**: NotificationCompat with channels
 
